@@ -1,9 +1,9 @@
+// LoginPage.tsx — Nuevo estilo: limpio, elegante y distinto (sin hero, sin rail)
+
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-
-import AuthLayout from "@/layouts/auth";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,29 +15,20 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Eye, EyeOff, Loader2, AlertCircle, Mail, Lock } from "lucide-react";
+import { Loader2, AlertCircle, Mail, Lock, Droplet } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "@/auth/useAuth";
 
 const formSchema = z.object({
-  email: z.string().email({
-    message: "Por favor ingrese un correo electrónico válido.",
-  }),
-  password: z.string().min(6, {
-    message: "La contraseña debe tener al menos 6 caracteres.",
-  }),
+  email: z.string().email({ message: "Correo electrónico inválido." }),
+  password: z
+    .string()
+    .min(6, { message: "La contraseña debe tener al menos 6 caracteres." }),
 });
 
 export default function LoginPage() {
-  const { login, isLoading } = useAuthStore(); // se conserva tu hook actual
+  const { login, isLoading } = useAuthStore();
   const [showPassword, setShowPassword] = useState(false);
   const [serverError, setServerError] = useState("");
   const navigate = useNavigate();
@@ -53,18 +44,19 @@ export default function LoginPage() {
     try {
       await login({ email: values.email, password: values.password });
       navigate("/");
-    } catch (e) {
-      if (e) {
-        form.setError("email", { type: "server", message: " " });
-        form.setError("password", { type: "server", message: " " });
-      }
+    } catch {
+      form.setError("email", { type: "server", message: " " });
+      form.setError("password", { type: "server", message: " " });
+      setServerError("Credenciales inválidas o sesión no autorizada.");
     }
   };
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      <div className="min-h-screen grid place-items-center bg-background">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" /> Cargando…
+        </div>
       </div>
     );
   }
@@ -72,21 +64,35 @@ export default function LoginPage() {
   const isSubmitting = form.formState.isSubmitting;
 
   return (
-    <AuthLayout
-      title="Iniciar Sesión"
-      subtitle="Accede a tu cuenta del sistema de distribución médica"
+    <div
+      className="
+        min-h-screen w-full
+        bg-[radial-gradient(800px_500px_at_0%_0%,rgba(99,102,241,0.08),transparent_60%),radial-gradient(700px_500px_at_100%_100%,rgba(34,197,94,0.08),transparent_60%)]
+        flex items-center justify-center px-4
+      "
     >
-      <Card className="border-border bg-card">
-        <CardHeader className="space-y-1">
-          <CardTitle className="text-xl text-card-foreground">
-            Bienvenido de vuelta
-          </CardTitle>
-          <CardDescription>
-            Ingresa tus credenciales para continuar
-          </CardDescription>
-        </CardHeader>
+      {/* Contenedor centrado con barra superior de marca */}
+      <div className="w-full max-w-lg rounded-2xl overflow-hidden border border-border/60 bg-card/80 backdrop-blur supports-[backdrop-filter]:bg-card/70 shadow-xl">
+        {/* Brand Bar (sutil y premium, diferente al card clásico) */}
+        <div className="relative">
+          <div className="h-1 w-full bg-gradient-to-r from-primary via-primary/60 to-emerald-400/70" />
+          <div className="px-6 py-4 flex items-center gap-3">
+            <div className="h-9 w-9 grid place-items-center rounded-lg bg-primary/15 text-primary">
+              <Droplet className="h-4 w-4" />
+            </div>
+            <div className="leading-tight">
+              <h1 className="text-sm font-semibold tracking-tight"></h1>
+              Sistema Multisensor No Invasivo para Monitoreo Integral de
+              Parámetros Sanguíneos
+              <p className="text-[11px] text-muted-foreground">
+                Ingreso seguro
+              </p>
+            </div>
+          </div>
+        </div>
 
-        <CardContent>
+        {/* Formulario */}
+        <div className="px-6 pb-6">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
               {serverError && (
@@ -101,15 +107,15 @@ export default function LoginPage() {
                 name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-foreground/80 font-medium">
-                      Correo electrónico
+                    <FormLabel className="text-foreground/80 font-medium text-sm">
+                      Correo
                     </FormLabel>
                     <FormControl>
                       <div className="relative">
                         <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <Input
-                          placeholder="admin@medical.com"
-                          className="pl-10 h-12 rounded-lg border-input/50 focus:border-primary"
+                          placeholder="clinico@clinic.app"
+                          className="pl-10 h-12 rounded-xl border-input/60 focus-visible:ring-2 focus-visible:ring-primary/40"
                           autoComplete="email"
                           {...field}
                         />
@@ -119,12 +125,13 @@ export default function LoginPage() {
                   </FormItem>
                 )}
               />
+
               <FormField
                 control={form.control}
                 name="password"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-foreground/80 font-medium">
+                    <FormLabel className="text-foreground/80 font-medium text-sm">
                       Contraseña
                     </FormLabel>
                     <FormControl>
@@ -133,7 +140,7 @@ export default function LoginPage() {
                         <Input
                           type={showPassword ? "text" : "password"}
                           placeholder="••••••••"
-                          className="pl-10 pr-10 h-12 rounded-lg border-input/50 focus:border-primary"
+                          className="pl-10 pr-10 h-12 rounded-xl border-input/60 focus-visible:ring-2 focus-visible:ring-primary/40"
                           autoComplete="current-password"
                           {...field}
                         />
@@ -141,19 +148,40 @@ export default function LoginPage() {
                           type="button"
                           variant="ghost"
                           size="icon"
-                          className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 text-muted-foreground hover:text-foreground"
+                          className="absolute right-1.5 top-1/2 -translate-y-1/2 h-8 w-8 text-muted-foreground hover:text-foreground"
                           onClick={() => setShowPassword((v) => !v)}
-                        >
-                          {showPassword ? (
-                            <EyeOff className="h-4 w-4" />
-                          ) : (
-                            <Eye className="h-4 w-4" />
-                          )}
-                          <span className="sr-only">
-                            {showPassword
+                          aria-label={
+                            showPassword
                               ? "Ocultar contraseña"
-                              : "Mostrar contraseña"}
-                          </span>
+                              : "Mostrar contraseña"
+                          }
+                        >
+                          {/* Íconos minimalistas distintos (SVGs inline para variar el look) */}
+                          {showPassword ? (
+                            <svg
+                              viewBox="0 0 24 24"
+                              className="h-4 w-4"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                            >
+                              <path d="M3 3l18 18" />
+                              <path d="M10.58 10.58A2 2 0 0012 14a2 2 0 001.42-.58" />
+                              <path d="M16.24 7.76A9.77 9.77 0 0121 12s-3 5-9 5a9.77 9.77 0 01-4.24-1.01" />
+                              <path d="M9.88 4.24A9.77 9.77 0 0112 4c6 0 9 5 9 5a16.9 16.9 0 01-1.64 2.56" />
+                            </svg>
+                          ) : (
+                            <svg
+                              viewBox="0 0 24 24"
+                              className="h-4 w-4"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                            >
+                              <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" />
+                              <circle cx="12" cy="12" r="3" />
+                            </svg>
+                          )}
                         </Button>
                       </div>
                     </FormControl>
@@ -164,7 +192,7 @@ export default function LoginPage() {
 
               <Button
                 type="submit"
-                className="w-full h-12 rounded-lg text-base font-medium transition-all duration-200 hover:shadow-md"
+                className="w-full h-12 rounded-xl text-base font-medium transition-all duration-200 hover:shadow-md"
                 disabled={isSubmitting}
               >
                 {isSubmitting ? (
@@ -176,10 +204,14 @@ export default function LoginPage() {
                   "Iniciar sesión"
                 )}
               </Button>
+
+              <p className="text-[11px] text-muted-foreground text-center">
+                Al continuar aceptas las políticas de privacidad y uso de datos.
+              </p>
             </form>
           </Form>
-        </CardContent>
-      </Card>
-    </AuthLayout>
+        </div>
+      </div>
+    </div>
   );
 }

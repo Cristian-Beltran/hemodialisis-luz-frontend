@@ -6,16 +6,16 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal, Pen, RefreshCwIcon, XCircle } from "lucide-react";
-import type { Patient } from "../patient.interface";
-import { userPatientStore } from "../data/patient.store";
+import type { Doctor } from "../doctor.interface";
+import { userDoctorStore } from "../data/doctor.store";
 
 interface Props {
-  item: Patient;
-  onEditUser: (user: Patient) => void;
+  item: Doctor;
+  onEditUser: (user: Doctor) => void;
 }
 
-export const PatientRowActions = ({ item, onEditUser }: Props) => {
-  const { changeStatus, remove } = userPatientStore();
+export const DoctorRowActions = ({ item, onEditUser }: Props) => {
+  const { changeStatus, remove } = userDoctorStore();
 
   const handleUpdate = () => {
     onEditUser(item); // Abre el modal de edición

@@ -1,16 +1,16 @@
 import { DataTable } from "@/components/table/data-table";
 import { columns } from "./columns";
 import { useEffect } from "react";
-import type { Patient } from "../patient.interface";
-import { userPatientStore } from "../data/patient.store";
-import { PatientRowActions } from "./row-actions";
-import PatientFilter from "./filters";
+import type { Doctor } from "../doctor.interface";
+import { userDoctorStore } from "../data/doctor.store";
+import { DoctorRowActions } from "./row-actions";
+import DoctorFilter from "./filters";
 
 interface Props {
-  onEdit: (patient: Patient) => void;
+  onEdit: (doctor: Doctor) => void;
 }
-export default function TablePatient({ onEdit }: Props) {
-  const { fetchFull, filteredData, isLoading } = userPatientStore();
+export default function TableDoctor({ onEdit }: Props) {
+  const { fetchFull, filteredData, isLoading } = userDoctorStore();
   useEffect(() => {
     fetchFull();
   }, [fetchFull]);
@@ -24,14 +24,14 @@ export default function TablePatient({ onEdit }: Props) {
           enableSorting: false,
           enableColumnFilter: false,
           cell: ({ row }) => (
-            <PatientRowActions item={row.original} onEditUser={onEdit} />
+            <DoctorRowActions item={row.original} onEditUser={onEdit} />
           ),
         },
       ]}
       manualPagination={false}
       data={filteredData}
       isLoading={isLoading}
-      toolbarContent={<PatientFilter />}
+      toolbarContent={<DoctorFilter />}
     />
   );
 }

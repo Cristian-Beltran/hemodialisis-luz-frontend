@@ -15,10 +15,7 @@ export const columns: ColumnDef<Patient>[] = [
     accessorKey: "user.address",
     header: () => "Dirreción",
   },
-  {
-    accessorKey: "device.serialNumber",
-    header: () => "Dispositivo vinculado",
-  },
+
   {
     accessorKey: "user.createdAt",
     id: "createdAt",

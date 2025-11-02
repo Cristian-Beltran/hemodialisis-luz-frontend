@@ -1,8 +1,8 @@
 import { Badge } from "@/components/ui/badge";
 import type { ColumnDef } from "@tanstack/react-table";
-import type { Patient } from "../patient.interface";
+import type { Doctor } from "../doctor.interface";
 
-export const columns: ColumnDef<Patient>[] = [
+export const columns: ColumnDef<Doctor>[] = [
   {
     accessorKey: "user.fullname",
     header: () => "Nombre",
@@ -14,10 +14,6 @@ export const columns: ColumnDef<Patient>[] = [
   {
     accessorKey: "user.address",
     header: () => "Dirreción",
-  },
-  {
-    accessorKey: "device.serialNumber",
-    header: () => "Dispositivo vinculado",
   },
   {
     accessorKey: "user.createdAt",

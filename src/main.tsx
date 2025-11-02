@@ -1,7 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { RouterProvider } from "react-router-dom";
-import "./App.css";
+import "./index.css";
 import { router } from "./app.router";
 import { ThemeProvider } from "./providers/ThemeProvider";
 import { Toaster } from "./components/ui/sonner";
