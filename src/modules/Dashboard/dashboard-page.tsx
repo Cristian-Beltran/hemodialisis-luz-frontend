@@ -33,6 +33,13 @@ type ExtVitals = Partial<{
   diastolic: number;
 }>;
 
+/* ============== Helpers de seguridad ============== */
+function safeDate(value?: string | Date | null): Date | null {
+  if (!value) return null;
+  const d = value instanceof Date ? value : new Date(value);
+  return Number.isFinite(d.getTime()) ? d : null;
+}
+
 // Acceso seguro sin usar `any` ni romper cuando no hay `latestRecord`
 function pickVital(
   rec: (SessionData & ExtVitals) | undefined,
@@ -45,10 +52,15 @@ function pickVital(
 }
 
 /* ============== Helpers (adaptados) ============== */
-function formatRelative(dateISO?: string) {
-  if (!dateISO) return "Sin lecturas";
-  const diffMs = Date.now() - new Date(dateISO).getTime();
+function formatRelative(dateISO?: string | null) {
+  const d = dateISO ? safeDate(dateISO) : null;
+  if (!d) return "Sin lecturas";
+
+  const diffMs = Date.now() - d.getTime();
   const mins = Math.floor(diffMs / 60000);
+
+  if (!Number.isFinite(mins)) return "Sin lecturas";
+
   if (mins < 1) return "Hace segundos";
   if (mins < 60) return `Hace ${mins} min`;
   const hrs = Math.floor(mins / 60);
@@ -57,42 +69,68 @@ function formatRelative(dateISO?: string) {
   return `Hace ${days} d`;
 }
 
-function latestRecordOfSession(s: Session): SessionData | undefined {
-  return (s.records ?? []).reduce<SessionData | undefined>(
-    (acc, r) =>
-      !acc || new Date(r.recordedAt) > new Date(acc.recordedAt) ? r : acc,
-    undefined,
-  );
+function latestRecordOfSession(
+  s: Session | null | undefined,
+): SessionData | undefined {
+  if (!s || !Array.isArray(s.records) || s.records.length === 0)
+    return undefined;
+
+  return s.records.reduce<SessionData | undefined>((acc, r) => {
+    const rDate = safeDate(r.recordedAt);
+    const accDate = acc ? safeDate(acc.recordedAt) : null;
+    if (!rDate) return acc;
+    if (!acc || (accDate && rDate > accDate)) return r;
+    return acc;
+  }, undefined);
 }
 
-function latestGlobal(sessions: Session[]) {
+function latestGlobal(sessions: Session[] | null | undefined) {
+  if (!Array.isArray(sessions) || sessions.length === 0) {
+    return { rec: undefined, ses: undefined };
+  }
+
   let rec: SessionData | undefined;
   let ses: Session | undefined;
+
   for (const s of sessions) {
-    for (const r of s.records ?? []) {
-      if (!rec || new Date(r.recordedAt) > new Date(rec.recordedAt)) {
+    if (!Array.isArray(s.records)) continue;
+    for (const r of s.records) {
+      const rDate = safeDate(r.recordedAt);
+      if (!rDate) continue;
+
+      const currentDate = rec ? safeDate(rec.recordedAt) : null;
+      if (!rec || (currentDate && rDate > currentDate)) {
         rec = r;
         ses = s;
       }
     }
   }
+
   return { rec, ses };
 }
 
-function countTodaySessions(sessions: Session[]) {
+function countTodaySessions(sessions: Session[] | null | undefined) {
+  if (!Array.isArray(sessions) || sessions.length === 0) return 0;
+
   const start = new Date();
   start.setHours(0, 0, 0, 0);
   const end = new Date();
   end.setHours(23, 59, 59, 999);
+
   return sessions.filter((s) => {
-    const d = new Date(s.startedAt);
-    return d >= start && d <= end;
+    const d = safeDate(s.startedAt);
+    return d && d >= start && d <= end;
   }).length;
 }
 
-function distinctPatientCount(sessions: Session[]) {
+function distinctPatientCount(sessions: Session[] | null | undefined) {
+  if (!Array.isArray(sessions) || sessions.length === 0) return 0;
+
   const set = new Set<string>();
-  sessions.forEach((s) => s.patient?.id && set.add(s.patient.id));
+  sessions.forEach((s) => {
+    const id = s?.patient?.id;
+    if (id) set.add(id);
+  });
   return set.size;
 }
 
@@ -118,16 +156,18 @@ export default function DashboardPage() {
     setError(null);
     try {
       const data = await sessionService.findAll(); // ✅ getAll
-      setSessions(data ?? []);
+      // Aseguramos que sessions siempre sea un array válido
+      setSessions(Array.isArray(data) ? data : []);
     } catch {
       setError("No se pudieron cargar las sesiones.");
+      setSessions([]); // fallback defensivo
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    load();
+    void load();
   }, []);
 
   /* -------- Derivados -------- */
@@ -137,19 +177,21 @@ export default function DashboardPage() {
   );
 
   const lastUpdate = useMemo(
-    () => formatRelative(latestRecord?.recordedAt),
+    () => formatRelative(latestRecord?.recordedAt ?? null),
     [latestRecord],
   );
 
   const latestPatientName = latestSession?.patient
-    ? `${latestSession.patient.firstName ?? ""} ${latestSession.patient.lastName ?? ""}`.trim() ||
-      latestSession.patient.id
+    ? `${latestSession.patient.firstName ?? ""} ${
+        latestSession.patient.lastName ?? ""
+      }`.trim() || latestSession.patient.id
     : "Paciente";
 
   const patientsCount = useMemo(
     () => distinctPatientCount(sessions),
     [sessions],
   );
+
   const todayCount = useMemo(() => countTodaySessions(sessions), [sessions]);
 
   // Puedes calcularlo con reglas (SpO2<92, Temp≥38, SYS≥140 o DIA≥90, etc.)
@@ -170,7 +212,9 @@ export default function DashboardPage() {
   const vDia = pickVital(
     latestRecord as (SessionData & ExtVitals) | undefined,
     "diastolic",
-  ); // Rangos para barras (ajusta por clínica)
+  );
+
+  // Rangos para barras (ajusta por clínica)
   const rPulse = { min: 40, max: 160 };
   const rSpo2 = { min: 85, max: 100 };
   const rTemp = { min: 35, max: 40 };
@@ -178,25 +222,43 @@ export default function DashboardPage() {
 
   /* -------- Recientes (top 5 por última lectura) -------- */
   const recentPatients = useMemo(() => {
+    if (!Array.isArray(sessions) || sessions.length === 0) return [];
+
     const map = new Map<string, { name: string; lastISO: string }>();
+
     sessions.forEach((s) => {
       const r = latestRecordOfSession(s);
       if (!r || !s.patient?.id) return;
+
       const name = s.patient.firstName
         ? `${s.patient.firstName} ${s.patient.lastName ?? ""}`.trim()
         : s.patient.id;
+
       const cur = map.get(s.patient.id);
-      if (!cur || new Date(r.recordedAt) > new Date(cur.lastISO)) {
+      const rDate = safeDate(r.recordedAt);
+      const curDate = cur ? safeDate(cur.lastISO) : null;
+
+      if (!rDate) return;
+
+      if (!cur || (curDate && rDate > curDate)) {
         map.set(s.patient.id, { name, lastISO: r.recordedAt });
       }
     });
+
     return Array.from(map.values())
-      .sort(
-        (a, b) => new Date(b.lastISO).getTime() - new Date(a.lastISO).getTime(),
-      )
+      .sort((a, b) => {
+        const da = safeDate(a.lastISO);
+        const db = safeDate(b.lastISO);
+        if (!da && !db) return 0;
+        if (!da) return 1;
+        if (!db) return -1;
+        return db.getTime() - da.getTime();
+      })
       .slice(0, 5)
       .map((p) => ({ name: p.name, last: formatRelative(p.lastISO) }));
   }, [sessions]);
+
+  const latestStartedAt = safeDate(latestSession?.startedAt);
 
   /* ============== UI ============== */
   return (
@@ -234,25 +296,25 @@ export default function DashboardPage() {
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <KpiTile
           label="Pacientes"
-          value={patientsCount}
+          value={patientsCount || 0}
           Icon={Users}
           variant="outline"
         />
         <KpiTile
           label="Sesiones hoy"
-          value={todayCount}
+          value={todayCount || 0}
           Icon={Activity}
           variant="secondary"
         />
         <KpiTile
           label="Críticas"
-          value={criticalCount}
+          value={criticalCount || 0}
           Icon={AlertTriangle}
           variant="destructive"
         />
         <KpiTile
           label="Estables"
-          value={stableCount}
+          value={stableCount || 0}
           Icon={CheckCircle}
           variant="outline"
         />
@@ -316,8 +378,14 @@ export default function DashboardPage() {
             <div className="text-xs text-muted-foreground">
               {latestSession ? (
                 <>
-                  Sesión {latestSession.id.slice(0, 8)}… iniciada{" "}
-                  {new Date(latestSession.startedAt).toLocaleString("es-ES")}
+                  Sesión{" "}
+                  {latestSession.id
+                    ? String(latestSession.id).slice(0, 8)
+                    : "—"}
+                  … iniciada{" "}
+                  {latestStartedAt
+                    ? latestStartedAt.toLocaleString("es-ES")
+                    : "Fecha no disponible"}
                 </>
               ) : (
                 <>No hay sesión activa</>
@@ -336,7 +404,7 @@ export default function DashboardPage() {
             {recentPatients.length ? (
               recentPatients.map((p, i) => (
                 <div
-                  key={i}
+                  key={`${p.name}-${i}`}
                   className="flex items-center justify-between rounded-lg border p-3 bg-muted/30"
                 >
                   <div>
@@ -366,15 +434,18 @@ export default function DashboardPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-          {sessions
+          {(Array.isArray(sessions) ? sessions : [])
             .slice()
-            .sort(
-              (a, b) =>
-                new Date(b.startedAt).getTime() -
-                new Date(a.startedAt).getTime(),
-            )
+            .sort((a, b) => {
+              const da = safeDate(a.startedAt);
+              const db = safeDate(b.startedAt);
+              if (!da && !db) return 0;
+              if (!da) return 1;
+              if (!db) return -1;
+              return db.getTime() - da.getTime();
+            })
             .slice(0, 6)
-            .map((s) => {
+            .map((s, idx) => {
               const r = latestRecordOfSession(s);
               const name = s.patient?.firstName
                 ? `${s.patient.firstName} ${s.patient.lastName ?? ""}`.trim()
@@ -383,17 +454,25 @@ export default function DashboardPage() {
               const pulse = num(r?.pulse);
               const spo2 = num(r?.oxygenSaturation);
               const temp = num(
-                (r as SessionData & { temperatureC?: number }).temperatureC,
+                (r as SessionData & { temperatureC?: number })?.temperatureC,
               );
               const sys = num(
-                (r as SessionData & { systolic?: number }).systolic,
+                (r as SessionData & { systolic?: number })?.systolic,
               );
               const dia = num(
-                (r as SessionData & { diastolic?: number }).diastolic,
+                (r as SessionData & { diastolic?: number })?.diastolic,
               );
 
+              const startedAt = safeDate(s.startedAt);
+              const startedAtLabel = startedAt
+                ? startedAt.toLocaleString("es-ES")
+                : "Fecha no disponible";
+
               return (
-                <Card key={s.id} className="border-muted/70">
+                <Card
+                  key={s.id ?? `session-${idx}`}
+                  className="border-muted/70"
+                >
                   <CardContent className="py-4 space-y-2">
                     <div className="flex items-center justify-between">
                       <div className="text-sm font-semibold">{name}</div>
@@ -402,7 +481,7 @@ export default function DashboardPage() {
                       </Badge>
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      {new Date(s.startedAt).toLocaleString("es-ES")}
+                      {startedAtLabel}
                     </div>
                     <Separator />
                     <div className="grid grid-cols-5 gap-2 text-xs">

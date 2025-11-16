@@ -16,20 +16,85 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
+import { Button } from "@/components/ui/button"; // 👈 NUEVO
 import type { Session, SessionData } from "../session.interface";
 
-const fmtDate = (d: string | Date) =>
-  new Date(d).toLocaleString("es-ES", {
+const fmtDate = (d: string | Date) => {
+  const date = new Date(d);
+  if (!Number.isFinite(date.getTime())) return "Fecha inválida";
+  return date.toLocaleString("es-ES", {
     day: "2-digit",
     month: "short",
     hour: "2-digit",
     minute: "2-digit",
   });
+};
 
 const safe = (n?: number | null) =>
   Number.isFinite(Number(n)) ? Number(n) : null;
 
-/** ---------- NUEVO: estadísticos por métrica sin lungCapacity ---------- */
+/** ---------- NUEVO: helpers CSV ---------- */
+function safeISO(value?: string | Date | null): string {
+  if (!value) return "";
+  const d = value instanceof Date ? value : new Date(value);
+  return Number.isFinite(d.getTime()) ? d.toISOString() : "";
+}
+
+function toCsvCell(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  const s = String(value);
+  const escaped = s.replace(/"/g, '""');
+  if (/[",\n]/.test(escaped)) return `"${escaped}"`;
+  return escaped;
+}
+
+function buildCsvFromSessions(sessions: Session[]): string {
+  // Cabeceras
+  const headers = [
+    "sessionId",
+    "sessionStartedAt",
+    "sessionEndedAt",
+    "patientId",
+    "patientFirstName",
+    "patientLastName",
+    "recordId",
+    "recordedAt",
+    "pulse",
+    "oxygenSaturation",
+    "temperatureC",
+    "systolic",
+    "diastolic",
+  ];
+
+  const lines: string[] = [];
+  lines.push(headers.map(toCsvCell).join(","));
+
+  sessions.forEach((s) => {
+    const recs = s.records ?? [];
+    recs.forEach((r) => {
+      const row = [
+        s.id ?? "",
+        safeISO(s.startedAt),
+        safeISO(s.endedAt ?? null),
+        s.patient?.id ?? "",
+        s.patient?.firstName ?? "",
+        s.patient?.lastName ?? "",
+        r.id ?? "",
+        safeISO(r.recordedAt),
+        r.pulse ?? "",
+        r.oxygenSaturation ?? "",
+        (r as SessionData & { temperatureC?: number }).temperatureC ?? "",
+        (r as SessionData & { systolic?: number }).systolic ?? "",
+        (r as SessionData & { diastolic?: number }).diastolic ?? "",
+      ];
+      lines.push(row.map(toCsvCell).join(","));
+    });
+  });
+
+  return lines.join("\n");
+}
+
+/** ---------- estadísticos por métrica ---------- */
 function miniStats(records: SessionData[]) {
   const nums = (sel: (r: SessionData) => number | null | undefined) =>
     records
@@ -70,6 +135,30 @@ export function SessionsTable() {
     return s as Session[];
   }, [sessions]);
 
+  const hasRecords = useMemo(
+    () => list.some((s) => (s.records?.length ?? 0) > 0),
+    [list],
+  );
+
+  const handleExportCsv = () => {
+    if (!list.length || !hasRecords) return;
+    const csv = buildCsvFromSessions(list);
+    const blob = new Blob([csv], {
+      type: "text/csv;charset=utf-8;",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+
+    const ts = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+
+    a.href = url;
+    a.download = `sesiones-${ts}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   if (isLoading) {
     return (
       <Card>
@@ -94,17 +183,30 @@ export function SessionsTable() {
 
   return (
     <div className="space-y-4">
-      {/* KPIs globales - look sobrio */}
-      <Card className="bg-muted/30 border-dotted">
-        <CardContent className="grid gap-3 py-4 sm:grid-cols-3">
-          <Kpi label="Sesiones" value={list.length} />
-          <Kpi
-            label="Lecturas"
-            value={list.reduce((acc, s) => acc + (s.records?.length ?? 0), 0)}
-          />
-          <Kpi label="Última sesión" value={fmtDate(list[0].startedAt)} />
-        </CardContent>
-      </Card>
+      {/* KPIs globales + botón CSV */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <Card className="flex-1 bg-muted/30 border-dotted">
+          <CardContent className="grid gap-3 py-4 sm:grid-cols-3">
+            <Kpi label="Sesiones" value={list.length} />
+            <Kpi
+              label="Lecturas"
+              value={list.reduce((acc, s) => acc + (s.records?.length ?? 0), 0)}
+            />
+            <Kpi label="Última sesión" value={fmtDate(list[0].startedAt)} />
+          </CardContent>
+        </Card>
+
+        <div className="flex justify-end">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportCsv}
+            disabled={!hasRecords}
+          >
+            Exportar CSV
+          </Button>
+        </div>
+      </div>
 
       {/* NUEVA VISTA: timeline/accordion con KPIs por sesión y tiles de lecturas */}
       <Accordion
@@ -144,7 +246,9 @@ export function SessionsTable() {
                     <div className="text-left">
                       <div className="text-sm font-semibold">
                         {s.patient?.firstName
-                          ? `${s.patient.firstName} ${s.patient.lastName ?? ""}`.trim()
+                          ? `${s.patient.firstName} ${
+                              s.patient.lastName ?? ""
+                            }`.trim()
                           : "Paciente"}
                       </div>
                       <div className="text-xs text-muted-foreground">
@@ -224,29 +328,39 @@ export function SessionsTable() {
 
                 {/* Grid de lecturas (tiles) */}
                 <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {recs.map((r) => (
-                    <Card key={r.id} className="border-muted/70">
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium">
-                          {new Date(r.recordedAt).toLocaleTimeString("es-ES", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                            second: "2-digit",
-                          })}
-                        </CardTitle>
-                        <CardDescription className="text-[11px] font-mono">
-                          {new Date(r.recordedAt).toLocaleDateString("es-ES")}
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent className="grid grid-cols-5 gap-2 text-xs">
-                        <Chip label="BPM" value={safe(r.pulse)} />
-                        <Chip label="SpO₂" value={safe(r.oxygenSaturation)} />
-                        <Chip label="°C" value={safe(r.temperatureC)} />
-                        <Chip label="SYS" value={safe(r.systolic)} />
-                        <Chip label="DIA" value={safe(r.diastolic)} />
-                      </CardContent>
-                    </Card>
-                  ))}
+                  {recs.map((r) => {
+                    const date = new Date(r.recordedAt);
+                    const timeLabel = Number.isFinite(date.getTime())
+                      ? date.toLocaleTimeString("es-ES", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          second: "2-digit",
+                        })
+                      : "Hora inválida";
+                    const dayLabel = Number.isFinite(date.getTime())
+                      ? date.toLocaleDateString("es-ES")
+                      : "Fecha inválida";
+
+                    return (
+                      <Card key={r.id} className="border-muted/70">
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-sm font-medium">
+                            {timeLabel}
+                          </CardTitle>
+                          <CardDescription className="text-[11px] font-mono">
+                            {dayLabel}
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent className="grid grid-cols-5 gap-2 text-xs">
+                          <Chip label="BPM" value={safe(r.pulse)} />
+                          <Chip label="SpO₂" value={safe(r.oxygenSaturation)} />
+                          <Chip label="°C" value={safe(r.temperatureC)} />
+                          <Chip label="SYS" value={safe(r.systolic)} />
+                          <Chip label="DIA" value={safe(r.diastolic)} />
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
                 </div>
               </AccordionContent>
             </AccordionItem>
@@ -324,7 +438,6 @@ function MetricBp({
   nowSys: number | null;
   nowDia: number | null;
 }) {
-  // Progreso sobre sistólica como referencia visual
   const p = pct(nowSys, minSys, maxSys);
   const badge =
     nowSys == null || nowDia == null
