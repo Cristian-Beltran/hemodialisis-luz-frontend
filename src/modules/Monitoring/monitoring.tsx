@@ -271,6 +271,7 @@ export default function MonitoringPage() {
   };
 
   /* -------- Loop de lectura -------- */
+
   const readLoop = async (connected: SerialIO): Promise<void> => {
     while (!closeLoopRef.current) {
       try {
@@ -278,7 +279,14 @@ export default function MonitoringPage() {
         if (done) break;
         if (!value) continue;
 
+        // 👉 LOG CRUDO
+        console.log("[SERIAL RAW]", JSON.stringify(value));
+
         const reading = parseLine(value);
+
+        // 👉 LOG PARSEADO
+        console.log("[SERIAL PARSED]", reading);
+
         if (!reading) continue;
 
         if (session && !isMonitoring) {
