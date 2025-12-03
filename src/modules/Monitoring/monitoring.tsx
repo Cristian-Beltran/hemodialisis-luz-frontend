@@ -546,16 +546,24 @@ export default function MonitoringPage() {
           />
         </div>
 
-        {/* Ticker horizontal de últimos N */}
+        {/* Ticker horizontal con wrap */}
         <div className="mt-5">
           <div className="text-xs text-muted-foreground mb-2">
             Ticker últimos 20
           </div>
-          <div className="flex gap-2 overflow-x-auto py-2 custom-scrollbar">
+
+          <div
+            className="
+              flex flex-wrap gap-2
+              max-h-[320px]
+              overflow-y-auto
+              custom-scrollbar
+            "
+          >
             {realtime.slice(-20).map((r, i) => (
               <div
                 key={i}
-                className="min-w-[240px] rounded-lg border px-3 py-2 bg-card/50"
+                className="w-[240px] rounded-lg border px-3 py-2 bg-card/50"
               >
                 <div className="text-[11px] text-muted-foreground">
                   {fmtTime(r.timestamp)}
