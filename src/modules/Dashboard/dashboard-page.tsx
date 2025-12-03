@@ -182,9 +182,8 @@ export default function DashboardPage() {
   );
 
   const latestPatientName = latestSession?.patient
-    ? `${latestSession.patient.firstName ?? ""} ${
-        latestSession.patient.lastName ?? ""
-      }`.trim() || latestSession.patient.id
+    ? `${latestSession.patient.user.fullname ?? ""}`.trim() ||
+      latestSession.patient.id
     : "Paciente";
 
   const patientsCount = useMemo(
@@ -230,9 +229,7 @@ export default function DashboardPage() {
       const r = latestRecordOfSession(s);
       if (!r || !s.patient?.id) return;
 
-      const name = s.patient.firstName
-        ? `${s.patient.firstName} ${s.patient.lastName ?? ""}`.trim()
-        : s.patient.id;
+      const name = s.patient ? `${s.patient.user.fullname}`.trim() : s.patient;
 
       const cur = map.get(s.patient.id);
       const rDate = safeDate(r.recordedAt);
@@ -447,9 +444,9 @@ export default function DashboardPage() {
             .slice(0, 6)
             .map((s, idx) => {
               const r = latestRecordOfSession(s);
-              const name = s.patient?.firstName
-                ? `${s.patient.firstName} ${s.patient.lastName ?? ""}`.trim()
-                : (s.patient?.id ?? "Paciente");
+              const name = s.patient
+                ? `${s.patient.user.fullname} `.trim()
+                : (s.patient ?? "Paciente");
 
               const pulse = num(r?.pulse);
               const spo2 = num(r?.oxygenSaturation);

@@ -504,7 +504,8 @@ export default function MonitoringPage() {
         <Separator className="my-3" />
 
         {/* Cuadrante de métricas con dígitos grandes + sparkline */}
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4 items-stretch">
           <MetricTile
             title="Pulso"
             value={last?.pulse ?? null}
@@ -642,40 +643,60 @@ function MetricTile({
 }) {
   const v = value;
   const show = typeof v === "number" && Number.isFinite(v);
-  const sparkW = 180;
-  const sparkH = 40;
+
+  // Dimensiones internas para calcular el path,
+  // pero el SVG se va a escalar con CSS (w-full)
+  const sparkW = 100;
+  const sparkH = 32;
   const path = sparklinePath(series, sparkW, sparkH);
 
   return (
-    <div className="rounded-2xl border p-4 bg-card/60">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
+    <div className="min-w-0 h-full rounded-2xl border p-4 bg-card/60 flex flex-col">
+      {/* Header */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
           {icon}
-          <span className="text-sm font-medium">{title}</span>
+          <span className="text-sm font-medium truncate">{title}</span>
         </div>
-        <span className="font-mono text-xs text-muted-foreground">{unit}</span>
+        <span className="font-mono text-xs text-muted-foreground whitespace-nowrap">
+          {unit}
+        </span>
       </div>
-      <div className="mt-2 flex items-end justify-between">
-        <div className="text-3xl font-semibold leading-none tracking-tight">
+
+      {/* Valor + sparkline */}
+      <div className="mt-2 flex items-end justify-between gap-2">
+        <div className="text-2xl font-semibold leading-none tracking-tight">
           {show ? v.toFixed(0) : "—"}
         </div>
-        <svg
-          width={sparkW}
-          height={sparkH}
-          viewBox={`0 0 ${sparkW} ${sparkH}`}
-          className="opacity-80"
-        >
-          <polyline
-            points={`0,${sparkH} ${sparkW},${sparkH}`}
-            stroke="currentColor"
-            opacity={0.15}
-            strokeWidth="1"
-            fill="none"
-          />
-          <path d={path} stroke="currentColor" strokeWidth="2" fill="none" />
-        </svg>
+        <div className="flex-1 flex justify-end">
+          <svg
+            viewBox={`0 0 ${sparkW} ${sparkH}`}
+            className="w-24 sm:w-32 h-10 opacity-80 flex-shrink-0"
+          >
+            {/* Línea base */}
+            <polyline
+              points={`0,${sparkH} ${sparkW},${sparkH}`}
+              stroke="currentColor"
+              opacity={0.15}
+              strokeWidth="1"
+              fill="none"
+            />
+            {path && (
+              <path
+                d={path}
+                stroke="currentColor"
+                strokeWidth="2"
+                fill="none"
+              />
+            )}
+          </svg>
+        </div>
       </div>
-      <Progress value={show ? pct : 0} className="h-1.5 mt-3" />
+
+      {/* Barra de progreso */}
+      <div className="mt-3">
+        <Progress value={show ? pct : 0} className="h-1.5" />
+      </div>
     </div>
   );
 }

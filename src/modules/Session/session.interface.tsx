@@ -1,3 +1,5 @@
+import type { Patient } from "../Patient/patient.interface";
+
 // --- DTOs de entrada ---
 export interface CreateSessionDto {
   patientId: string;
@@ -24,12 +26,7 @@ export interface SessionData {
 
 export interface Session {
   id: string;
-  patient: {
-    id: string;
-    firstName: string;
-    lastName: string;
-    email?: string;
-  };
+  patient: Patient;
   startedAt: string; // ISO
   endedAt?: string | null; // ISO | null
   records?: SessionData[];
